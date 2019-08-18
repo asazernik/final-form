@@ -493,7 +493,9 @@ function createForm<FormValues: FormValuesShape>(
       }
     }
     if (name) {
-      notifyField(name)
+      if (safeFields.hasOwnProperty(name)) {
+        notifyField(name)
+      }
     } else {
       Object.keys(safeFields).forEach(notifyField)
     }
