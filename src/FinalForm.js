@@ -656,11 +656,11 @@ function createForm<FormValues: FormValuesShape>(
         }
         if (validateOnBlur) {
           runValidation(name, () => {
-            notifyFieldListeners()
+            notifyFieldListeners(name)
             notifyFormListeners()
           })
         } else {
-          notifyFieldListeners()
+          notifyFieldListeners(name)
           notifyFormListeners()
         }
       }
@@ -679,11 +679,11 @@ function createForm<FormValues: FormValuesShape>(
           }
         }
         if (validateOnBlur) {
-          notifyFieldListeners()
+          notifyFieldListeners(name)
           notifyFormListeners()
         } else {
           runValidation(name, () => {
-            notifyFieldListeners()
+            notifyFieldListeners(name)
             notifyFormListeners()
           })
         }
@@ -704,7 +704,7 @@ function createForm<FormValues: FormValuesShape>(
         state.formState.active = name
         field.active = true
         field.visited = true
-        notifyFieldListeners()
+        notifyFieldListeners(name)
         notifyFormListeners()
       }
     },
