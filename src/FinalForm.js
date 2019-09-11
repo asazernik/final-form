@@ -826,9 +826,9 @@ function createForm<FormValues: FormValuesShape>(
       }
 
       if (haveValidator) {
-        runValidation(undefined, () => {
+        runValidation(name, () => {
           notifyFormListeners()
-          notifyFieldListeners()
+          notifyFieldListeners(name)
         })
       } else {
         notifyFormListeners()
@@ -861,9 +861,9 @@ function createForm<FormValues: FormValuesShape>(
           }
         }
         if (validatorRemoved) {
-          runValidation(undefined, () => {
+          runValidation(name, () => {
             notifyFormListeners()
-            notifyFieldListeners()
+            notifyFieldListeners(name)
           })
         } else if (lastOne) {
           // values or errors may have changed
@@ -900,8 +900,8 @@ function createForm<FormValues: FormValuesShape>(
           visited: false
         }
       }
-      runValidation(undefined, () => {
-        notifyFieldListeners()
+      runValidation(name, () => {
+        notifyFieldListeners(name)
         notifyFormListeners()
       })
     },
