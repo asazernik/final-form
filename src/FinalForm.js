@@ -658,7 +658,7 @@ function createForm<FormValues: FormValuesShape>(
             notifyFormListeners()
           })
         } else {
-          notifyFieldListeners()
+          notifyFieldListeners(name)
           notifyFormListeners()
         }
       }
@@ -677,7 +677,7 @@ function createForm<FormValues: FormValuesShape>(
           }
         }
         if (validateOnBlur) {
-          notifyFieldListeners()
+          notifyFieldListeners(name)
           notifyFormListeners()
         } else {
           runValidation(name, () => {
