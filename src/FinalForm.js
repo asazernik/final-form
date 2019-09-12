@@ -265,10 +265,9 @@ function createForm<FormValues: FormValuesShape>(
       state.fields = mutatableState.fields
       state.fieldSubscribers = mutatableState.fieldSubscribers
       state.lastFormState = mutatableState.lastFormState
-      runValidation(undefined, () => {
-        notifyFieldListeners()
-        notifyFormListeners()
-      })
+
+      notifyFieldListeners()
+      runValidation(undefined, notifyFieldListeners, notifyFormListeners)
       return returnValue
     }
   }
@@ -306,7 +305,8 @@ function createForm<FormValues: FormValuesShape>(
 
   const runFieldLevelValidation = (
     field: InternalFieldState,
-    setError: (error: ?any) => void
+    setError: (error: ?any) => void,
+    fieldCallback: (fieldName: string) => void
   ): Promise<*>[] => {
     const promises = []
     const validators = getValidators(field)
@@ -323,9 +323,11 @@ function createForm<FormValues: FormValuesShape>(
 
         if (errorOrPromise && isPromise(errorOrPromise)) {
           field.validating = true
+          fieldCallback(field.name)
           const promise = errorOrPromise.then(error => {
             field.validating = false
             setError(error)
+            fieldCallback(field.name)
           }) // errors must be resolved, not rejected
           promises.push(promise)
         } else if (!error) {
@@ -338,10 +340,16 @@ function createForm<FormValues: FormValuesShape>(
     return promises
   }
 
-  const runValidation = (fieldChanged: ?string, callback: () => void) => {
+  const runValidation = (
+    fieldChanged: ?string,
+    fieldCallback?: string => void = () => undefined,
+    formCallback: () => void
+  ) => {
     if (validationPaused) {
       validationBlocked = true
-      callback()
+      if (fieldChanged && state.fields[fieldChanged])
+        fieldCallback(fieldChanged)
+      formCallback()
       return
     }
 
@@ -352,7 +360,8 @@ function createForm<FormValues: FormValuesShape>(
       !validate &&
       !fieldKeys.some(key => getValidators(safeFields[key]).length)
     ) {
-      callback()
+      if (fieldChanged && safeFields[fieldChanged]) fieldCallback(fieldChanged)
+      formCallback()
       return // no validation rules
     }
 
@@ -381,9 +390,13 @@ function createForm<FormValues: FormValuesShape>(
       ...fieldKeys.reduce(
         (result, name) =>
           result.concat(
-            runFieldLevelValidation(fields[name], (error: ?any) => {
-              fieldLevelErrors[name] = error
-            })
+            runFieldLevelValidation(
+              fields[name],
+              (error: ?any) => {
+                fieldLevelErrors[name] = error
+              },
+              fieldCallback
+            )
           ),
         []
       )
@@ -426,35 +439,52 @@ function createForm<FormValues: FormValuesShape>(
           }
         })
       }
+
+      let oldErrors = formState.errors
+      let changedValidityFields = []
+
       forEachError((name, error) => {
+        if (getIn(oldErrors, name) !== error) {
+          changedValidityFields.push(name)
+        }
         merged = setIn(merged, name, error) || {}
       })
       forEachError((name, error) => {
         if (error && error[ARRAY_ERROR]) {
+          if (
+            error[ARRAY_ERROR] !== getIn(oldErrors, `${name}.${ARRAY_ERROR}`) &&
+            !changedValidityFields.includes(name)
+          ) {
+            changedValidityFields.push(name)
+          }
+
           const existing = getIn(merged, name)
           const copy: any = [...existing]
           copy[ARRAY_ERROR] = error[ARRAY_ERROR]
           merged = setIn(merged, name, copy)
         }
       })
+
       if (!shallowEqual(formState.errors, merged)) {
         formState.errors = merged
       }
+      changedValidityFields.forEach(fieldCallback)
+
       formState.error = recordLevelErrors[FORM_ERROR]
+      formCallback()
     }
 
     // process sync errors
     processErrors()
     // sync errors have been set. notify listeners while we wait for others
-    callback()
 
     if (hasAsyncValidations) {
       state.formState.validating++
-      callback()
+      formCallback()
 
       const afterPromise = () => {
         state.formState.validating--
-        callback()
+        formCallback()
       }
 
       promise
@@ -628,9 +658,7 @@ function createForm<FormValues: FormValuesShape>(
     )
 
   // generate initial errors
-  runValidation(undefined, () => {
-    notifyFormListeners()
-  })
+  runValidation(undefined, undefined, notifyFormListeners)
 
   const api: FormApi<FormValues> = {
     batch: (fn: () => void) => {
@@ -652,13 +680,11 @@ function createForm<FormValues: FormValuesShape>(
           active: false,
           touched: true
         }
+
+        notifyFieldListeners(name)
         if (validateOnBlur) {
-          runValidation(name, () => {
-            notifyFieldListeners()
-            notifyFormListeners()
-          })
+          runValidation(name, notifyFieldListeners, notifyFormListeners)
         } else {
-          notifyFieldListeners(name)
           notifyFormListeners()
         }
       }
@@ -675,15 +701,13 @@ function createForm<FormValues: FormValuesShape>(
             ...previous,
             modified: true
           }
-        }
-        if (validateOnBlur) {
           notifyFieldListeners(name)
+        }
+
+        if (validateOnBlur) {
           notifyFormListeners()
         } else {
-          runValidation(name, () => {
-            notifyFieldListeners()
-            notifyFormListeners()
-          })
+          runValidation(name, notifyFieldListeners, notifyFormListeners)
         }
       }
     },
@@ -742,10 +766,9 @@ function createForm<FormValues: FormValuesShape>(
         }
       })
       formState.initialValues = values
-      runValidation(undefined, () => {
-        notifyFieldListeners()
-        notifyFormListeners()
-      })
+      notifyFieldListeners()
+
+      runValidation(undefined, notifyFieldListeners, notifyFormListeners)
     },
 
     isValidationPaused: () => validationPaused,
@@ -823,14 +846,11 @@ function createForm<FormValues: FormValuesShape>(
         }
       }
 
+      notifyFieldListeners(name)
       if (haveValidator) {
-        runValidation(undefined, () => {
-          notifyFormListeners()
-          notifyFieldListeners()
-        })
+        runValidation(undefined, notifyFieldListeners, notifyFormListeners)
       } else {
         notifyFormListeners()
-        notifyFieldListeners(name)
       }
 
       return () => {
@@ -859,10 +879,7 @@ function createForm<FormValues: FormValuesShape>(
           }
         }
         if (validatorRemoved) {
-          runValidation(undefined, () => {
-            notifyFormListeners()
-            notifyFieldListeners()
-          })
+          runValidation(undefined, notifyFieldListeners, notifyFormListeners)
         } else if (lastOne) {
           // values or errors may have changed
           notifyFormListeners()
@@ -898,20 +915,16 @@ function createForm<FormValues: FormValuesShape>(
           visited: false
         }
       }
-      runValidation(undefined, () => {
-        notifyFieldListeners()
-        notifyFormListeners()
-      })
+      notifyFieldListeners()
+
+      runValidation(undefined, notifyFieldListeners, notifyFormListeners)
     },
 
     resumeValidation: () => {
       validationPaused = false
       if (validationBlocked) {
         // validation was attempted while it was paused, so run it now
-        runValidation(undefined, () => {
-          notifyFieldListeners()
-          notifyFormListeners()
-        })
+        runValidation(undefined, notifyFieldListeners, notifyFormListeners)
       }
       validationBlocked = false
     },
@@ -952,10 +965,7 @@ function createForm<FormValues: FormValuesShape>(
           break
         case 'validate':
           validate = value
-          runValidation(undefined, () => {
-            notifyFieldListeners()
-            notifyFormListeners()
-          })
+          runValidation(undefined, notifyFieldListeners, notifyFormListeners)
           break
         case 'validateOnBlur':
           validateOnBlur = value
