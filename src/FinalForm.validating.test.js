@@ -1,6 +1,6 @@
 import createForm from './FinalForm'
 import { ARRAY_ERROR } from './constants'
-import { lastCall, lastError } from './FinalForm.fieldSubscribing.test';
+import { lastCall, lastError } from './FinalForm.fieldSubscribing.test'
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const onSubmitMock = (values, callback) => {}
@@ -1024,7 +1024,6 @@ describe('Field.validation', () => {
     form.registerField('items[1]', items1, { error: true })
     expect(items1).toHaveBeenCalled()
     expect(lastError(items1)).toBe('Required')
-
 
     form.change('items[1]', 'Cat')
 
