@@ -30,7 +30,8 @@ import type {
   Subscription,
   Unsubscribe
 } from './types'
-import { FORM_ERROR, ARRAY_ERROR } from './constants'
+import { ARRAY_ERROR, FORM_ERROR } from './constants'
+
 export { version } from '../package.json'
 
 export const configOptions: ConfigKey[] = [
@@ -540,13 +541,12 @@ function createForm<FormValues: FormValuesShape>(
 
   const calculateNextFormState = (): FormState<FormValues> => {
     const { fields, formState, lastFormState } = state
-    const safeFields = { ...fields }
-    const safeFieldKeys = Object.keys(safeFields)
+    const fieldKeys = Object.keys(fields)
 
     // calculate dirty/pristine
     let foundDirty = false
-    const dirtyFields = safeFieldKeys.reduce((result, key) => {
-      const dirty = !safeFields[key].isEqual(
+    const dirtyFields = fieldKeys.reduce((result, key) => {
+      const dirty = !fields[key].isEqual(
         getIn(formState.values, key),
         getIn(formState.initialValues || {}, key)
       )
@@ -559,10 +559,10 @@ function createForm<FormValues: FormValuesShape>(
     formState.pristine = !foundDirty
     formState.dirtySinceLastSubmit = !!(
       formState.lastSubmittedValues &&
-      !safeFieldKeys.every(key => {
+      !fieldKeys.every(key => {
         // istanbul ignore next
         const nonNullLastSubmittedValues = formState.lastSubmittedValues || {} // || {} is for flow, but causes branch coverage complaint
-        return safeFields[key].isEqual(
+        return fields[key].isEqual(
           getIn(formState.values, key),
           getIn(nonNullLastSubmittedValues, key)
         )
@@ -575,11 +575,11 @@ function createForm<FormValues: FormValuesShape>(
       !hasAnyError(formState.errors) &&
       !(formState.submitErrors && hasAnyError(formState.submitErrors))
     const nextFormState = convertToExternalFormState(formState)
-    const { modified, touched, visited } = safeFieldKeys.reduce(
+    const { modified, touched, visited } = fieldKeys.reduce(
       (result, key) => {
-        result.modified[key] = safeFields[key].modified
-        result.touched[key] = safeFields[key].touched
-        result.visited[key] = safeFields[key].visited
+        result.modified[key] = fields[key].modified
+        result.touched[key] = fields[key].touched
+        result.visited[key] = fields[key].visited
         return result
       },
       { modified: {}, touched: {}, visited: {} }
@@ -744,13 +744,12 @@ function createForm<FormValues: FormValuesShape>(
 
     initialize: (data: Object | ((values: Object) => Object)) => {
       const { fields, formState } = state
-      const safeFields = { ...fields }
       const values = typeof data === 'function' ? data(formState.values) : data
       if (!keepDirtyOnReinitialize) {
         formState.values = values
       }
-      Object.keys(safeFields).forEach(key => {
-        const field = safeFields[key]
+      Object.keys(fields).forEach(key => {
+        const field = fields[key]
         field.modified = false
         field.touched = false
         field.visited = false
