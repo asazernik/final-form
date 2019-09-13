@@ -1,4 +1,5 @@
 // @flow
+import { clone } from 'lodash'
 import getIn from './structure/getIn'
 import setIn from './structure/setIn'
 import publishFieldState from './publishFieldState'
@@ -188,7 +189,7 @@ function createForm<FormValues: FormValuesShape>(
     formState: {
       dirtySinceLastSubmit: false,
       errors: {},
-      initialValues: initialValues && { ...initialValues },
+      initialValues: initialValues && clone(initialValues),
       invalid: false,
       pristine: true,
       submitting: false,
@@ -196,7 +197,7 @@ function createForm<FormValues: FormValuesShape>(
       submitSucceeded: false,
       valid: true,
       validating: 0,
-      values: initialValues ? { ...initialValues } : (({}: any): FormValues)
+      values: initialValues ? clone(initialValues) : (({}: any): FormValues)
     },
     lastFormState: undefined
   }
@@ -285,7 +286,7 @@ function createForm<FormValues: FormValuesShape>(
   ): Promise<*>[] => {
     const promises = []
     if (validate) {
-      const errorsOrPromise = validate({ ...state.formState.values }) // clone to avoid writing
+      const errorsOrPromise = validate(clone(state.formState.values)) // clone to avoid writing
       if (isPromise(errorsOrPromise)) {
         promises.push(errorsOrPromise.then(setErrors))
       } else {
@@ -355,7 +356,7 @@ function createForm<FormValues: FormValuesShape>(
     }
 
     const { fields, formState } = state
-    const safeFields = { ...fields }
+    const safeFields = clone(fields)
     let fieldKeys = Object.keys(safeFields)
     if (
       !validate &&
@@ -506,7 +507,7 @@ function createForm<FormValues: FormValuesShape>(
       return
     }
     const { fields, fieldSubscribers, formState } = state
-    const safeFields = { ...fields }
+    const safeFields = clone(fields)
     const notifyField = (name: string) => {
       const field = safeFields[name]
       const fieldState = publishFieldState(formState, field)
@@ -1032,7 +1033,7 @@ function createForm<FormValues: FormValuesShape>(
       formState.submitting = true
       formState.submitFailed = false
       formState.submitSucceeded = false
-      formState.lastSubmittedValues = { ...formState.values }
+      formState.lastSubmittedValues = clone(formState.values)
 
       // onSubmit is either sync, callback or async with a Promise
       const result = onSubmit(formState.values, api, complete)
