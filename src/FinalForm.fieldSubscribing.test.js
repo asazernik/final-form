@@ -2,6 +2,10 @@ import createForm from './FinalForm'
 
 const onSubmitMock = (values, callback) => {}
 
+export const lastCall = fieldMock =>
+    fieldMock.mock.calls[fieldMock.mock.calls.length - 1]
+export const lastError = fieldMock => lastCall(fieldMock)[0].error
+
 describe('Field.subscribing', () => {
   const prepareFieldSubscribers = (
     formSubscription,
@@ -26,8 +30,7 @@ describe('Field.subscribing', () => {
           fieldConfig[name]
         )
         expect(spy).toHaveBeenCalled()
-        expect(spy).toHaveBeenCalledTimes(1)
-        const { blur, change, focus } = spy.mock.calls[0][0]
+        const { blur, change, focus } = lastCall(spy)[0]
         result[name] = { blur, change, focus, spy }
         return result
       }, {}),
@@ -179,25 +182,24 @@ describe('Field.subscribing', () => {
     )
 
     // should initialize with error
-    expect(spy).toHaveBeenCalledTimes(1)
-    expect(spy.mock.calls[0][0].error).toBe('Required')
+    expect(spy).toHaveBeenCalled()
+    expect(lastError(spy)).toBe('Required')
 
     change('bar')
 
     // field is now valid: no error
-    expect(spy).toHaveBeenCalledTimes(2)
-    expect(spy.mock.calls[1][0].error).toBeUndefined()
+    expect(lastError(spy)).toBeUndefined()
+    const numSpyCalls = spy.mock.calls.length
 
     change('baz')
 
     // still valid, no change
-    expect(spy).toHaveBeenCalledTimes(2)
+    expect(spy).toHaveBeenCalledTimes(numSpyCalls)
 
     change(undefined)
 
     // invalid again: have error
-    expect(spy).toHaveBeenCalledTimes(3)
-    expect(spy.mock.calls[2][0].error).toBe('Required')
+    expect(lastError(spy)).toBe('Required')
   })
 
   it('should allow subscribing to initial', () => {
@@ -380,25 +382,24 @@ describe('Field.subscribing', () => {
     )
 
     // should initialize as invalid
-    expect(spy).toHaveBeenCalledTimes(1)
-    expect(spy.mock.calls[0][0].invalid).toBe(true)
+    expect(spy).toHaveBeenCalled()
+    expect(lastCall(spy)[0].invalid).toBe(true)
 
     change('bar')
 
     // field is now valid
-    expect(spy).toHaveBeenCalledTimes(2)
-    expect(spy.mock.calls[1][0].invalid).toBe(false)
+    expect(lastCall(spy)[0].invalid).toBe(false)
+    const numSpyCalls = spy.mock.calls.length
 
     change('baz')
 
     // still valid, no change
-    expect(spy).toHaveBeenCalledTimes(2)
+    expect(spy).toHaveBeenCalledTimes(numSpyCalls)
 
     change(undefined)
 
     // invalid again
-    expect(spy).toHaveBeenCalledTimes(3)
-    expect(spy.mock.calls[2][0].invalid).toBe(true)
+    expect(lastCall(spy)[0].invalid).toBe(true)
   })
 
   it('should allow subscribing to length', () => {
@@ -614,25 +615,24 @@ describe('Field.subscribing', () => {
     )
 
     // should initialize as invalid
-    expect(spy).toHaveBeenCalledTimes(1)
-    expect(spy.mock.calls[0][0].valid).toBe(false)
+    expect(spy).toHaveBeenCalled()
+    expect(lastCall(spy)[0].valid).toBe(false)
 
     change('bar')
 
     // field is now valid
-    expect(spy).toHaveBeenCalledTimes(2)
-    expect(spy.mock.calls[1][0].valid).toBe(true)
+    expect(lastCall(spy)[0].valid).toBe(true)
+    const numSpyCalls = spy.mock.calls.length
 
     change('baz')
 
     // still valid, no change
-    expect(spy).toHaveBeenCalledTimes(2)
+    expect(spy).toHaveBeenCalledTimes(numSpyCalls)
 
     change(undefined)
 
     // invalid again
-    expect(spy).toHaveBeenCalledTimes(3)
-    expect(spy.mock.calls[2][0].valid).toBe(false)
+    expect(lastCall(spy)[0].valid).toBe(false)
   })
 
   it('should allow subscribing to value', () => {

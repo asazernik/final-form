@@ -1,5 +1,6 @@
 import createForm from './FinalForm'
 import { ARRAY_ERROR } from './constants'
+import { lastCall, lastError } from './FinalForm.fieldSubscribing.test';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const onSubmitMock = (values, callback) => {}
@@ -149,43 +150,34 @@ describe('Field.validation', () => {
     )
 
     // both called with first error
-    expect(spy1).toHaveBeenCalledTimes(1)
-    expect(spy1.mock.calls[0][0].error).toBe('Required')
-    expect(spy2).toHaveBeenCalledTimes(1)
-    expect(spy2.mock.calls[0][0].error).toBe('Required')
+    expect(lastError(spy1)).toBe('Required')
+    expect(lastError(spy2)).toBe('Required')
 
     const { change } = spy1.mock.calls[0][0]
     change('hello')
 
     // both called with second error
-    expect(spy1).toHaveBeenCalledTimes(2)
-    expect(spy1.mock.calls[1][0].error).toBe('Incorrect value')
-    expect(spy2).toHaveBeenCalledTimes(2)
-    expect(spy2.mock.calls[1][0].error).toBe('Incorrect value')
+    expect(lastError(spy1)).toBe('Incorrect value')
+    expect(lastError(spy2)).toBe('Incorrect value')
 
     change('correct')
 
     // both called with no error
-    expect(spy1).toHaveBeenCalledTimes(3)
-    expect(spy1.mock.calls[2][0].error).toBeUndefined()
-    expect(spy2).toHaveBeenCalledTimes(3)
-    expect(spy2.mock.calls[2][0].error).toBeUndefined()
+    expect(lastError(spy1)).toBeUndefined()
+    expect(lastError(spy2)).toBeUndefined()
 
     change(undefined)
 
     // back to original state
-    expect(spy1).toHaveBeenCalledTimes(4)
-    expect(spy1.mock.calls[3][0].error).toBe('Required')
-    expect(spy2).toHaveBeenCalledTimes(4)
-    expect(spy2.mock.calls[3][0].error).toBe('Required')
+    expect(lastError(spy1)).toBe('Required')
+    expect(lastError(spy2)).toBe('Required')
 
     // unregister first field
     unsubscribe1()
 
     // only second one called with its error
-    expect(spy1).toHaveBeenCalledTimes(4)
-    expect(spy2).toHaveBeenCalledTimes(5)
-    expect(spy2.mock.calls[4][0].error).toBe('Incorrect value')
+    expect(lastError(spy1)).toBe('Required')
+    expect(lastError(spy2)).toBe('Incorrect value')
   })
 
   it("should update a field's error if it was changed by another field's value change (record-level)", () => {
@@ -323,28 +315,24 @@ describe('Field.validation', () => {
       { getValidator: () => value => (value ? undefined : 'Required') }
     )
 
-    expect(spy).toHaveBeenCalledTimes(1)
-    expect(spy.mock.calls[0][0].error).toBe('Required')
+    expect(lastError(spy)).toBe('Required')
 
     const { change } = spy.mock.calls[0][0]
 
     change('hi')
 
     // error now changes to record level
-    expect(spy).toHaveBeenCalledTimes(2)
-    expect(spy.mock.calls[1][0].error).toBe('Too short')
+    expect(lastError(spy)).toBe('Too short')
 
     change('hi there')
 
     // no errors
-    expect(spy).toHaveBeenCalledTimes(3)
-    expect(spy.mock.calls[2][0].error).toBeUndefined()
+    expect(lastError(spy)).toBeUndefined()
 
     change('')
 
     // error goes back to field level
-    expect(spy).toHaveBeenCalledTimes(4)
-    expect(spy.mock.calls[3][0].error).toBe('Required')
+    expect(lastError(spy)).toBe('Required')
   })
 
   it('should allow record-level async validation via promises', async () => {
@@ -473,42 +461,39 @@ describe('Field.validation', () => {
         subscribeToEachFieldsPromise: true
       }
     )
-    expect(spy).toHaveBeenCalledTimes(1)
-    expect(spy.mock.calls[0][0].error).toBeUndefined()
-    expect(spy.mock.calls[0][0].validating).toBe(true)
+    expect(spy).toHaveBeenCalled()
+    expect(lastError(spy)).toBeUndefined()
+    expect(lastCall(spy)[0].validating).toBe(true)
 
     const { change } = spy.mock.calls[0][0]
 
     await sleep(delay * 2)
 
     // called after promised resolved
-    expect(spy).toHaveBeenCalledTimes(2)
-    expect(spy.mock.calls[1][0].error).toBeUndefined()
-    expect(spy.mock.calls[1][0].validating).toBe(false)
+    expect(lastError(spy)).toBeUndefined()
+    expect(lastCall(spy)[0].validating).toBe(false)
 
     change('something')
 
-    expect(spy).toHaveBeenCalledTimes(3)
-    expect(spy.mock.calls[2][0].error).toBeUndefined()
-    expect(spy.mock.calls[2][0].validating).toBe(true)
+    // called after promised resolved
+    expect(lastError(spy)).toBeUndefined()
+    expect(lastCall(spy)[0].validating).toBe(true)
 
     await sleep(delay * 2)
 
-    expect(spy).toHaveBeenCalledTimes(4)
-    expect(spy.mock.calls[3][0].error).toBeUndefined()
-    expect(spy.mock.calls[3][0].validating).toBe(false)
+    // called after promised resolved
+    expect(lastError(spy)).toBeUndefined()
+    expect(lastCall(spy)[0].validating).toBe(false)
 
     change('erikras')
 
-    expect(spy).toHaveBeenCalledTimes(5)
-    expect(spy.mock.calls[4][0].error).toBeUndefined()
-    expect(spy.mock.calls[4][0].validating).toBe(true)
+    expect(lastError(spy)).toBeUndefined()
+    expect(lastCall(spy)[0].validating).toBe(true)
 
     await sleep(delay * 2)
 
-    expect(spy).toHaveBeenCalledTimes(6)
-    expect(spy.mock.calls[5][0].error).toBe('Username taken')
-    expect(spy.mock.calls[5][0].validating).toBe(false)
+    expect(lastError(spy)).toBe('Username taken')
+    expect(lastCall(spy)[0].validating).toBe(false)
   })
 
   it('should allow field-level async validation via promise', async () => {
@@ -1030,27 +1015,22 @@ describe('Field.validation', () => {
     const items1 = jest.fn()
     form.registerField('items', items, { error: true })
     expect(items).toHaveBeenCalled()
-    expect(items).toHaveBeenCalledTimes(1)
     expect(items.mock.calls[0][0].error).toBe('Need more items')
 
     form.registerField('items[0]', items0, { error: true })
     expect(items0).toHaveBeenCalled()
-    expect(items0).toHaveBeenCalledTimes(1)
-    expect(items0.mock.calls[0][0].error).toBeUndefined()
+    expect(lastError(items0)).toBeUndefined()
 
     form.registerField('items[1]', items1, { error: true })
     expect(items1).toHaveBeenCalled()
-    expect(items1).toHaveBeenCalledTimes(1)
-    expect(items1.mock.calls[0][0].error).toBe('Required')
+    expect(lastError(items1)).toBe('Required')
 
-    expect(validate).toHaveBeenCalledTimes(1)
 
     form.change('items[1]', 'Cat')
+
     expect(validate).toHaveBeenCalledTimes(2)
-    expect(items).toHaveBeenCalledTimes(1)
-    expect(items0).toHaveBeenCalledTimes(1)
-    expect(items1).toHaveBeenCalledTimes(2)
-    expect(items1.mock.calls[1][0].error).toBeUndefined()
+    expect(items0).toHaveBeenCalled()
+    expect(lastError(items1)).toBeUndefined()
   })
 
   it('should not blow away all field-level validation errors when one is remedied and no validateFields', () => {
@@ -1067,18 +1047,16 @@ describe('Field.validation', () => {
     form.registerField('bar', bar, { error: true }, config)
 
     expect(foo).toHaveBeenCalled()
-    expect(foo).toHaveBeenCalledTimes(1)
-    expect(foo.mock.calls[0][0].error).toBe('Required')
+    expect(lastError(foo)).toBe('Required')
+    const fooNumCalls = foo.mock.calls.length
 
     expect(bar).toHaveBeenCalled()
-    expect(bar).toHaveBeenCalledTimes(1)
-    expect(bar.mock.calls[0][0].error).toBe('Required')
+    expect(lastError(bar)).toBe('Required')
 
     form.change('bar', 'hi')
 
-    expect(foo).toHaveBeenCalledTimes(1)
-    expect(bar).toHaveBeenCalledTimes(2)
-    expect(bar.mock.calls[1][0].error).toBeUndefined()
+    expect(foo).toHaveBeenCalledTimes(fooNumCalls)
+    expect(lastError(bar)).toBeUndefined()
   })
 
   it('should mark the form as valid when all required fields are completed', () => {
@@ -1095,13 +1073,11 @@ describe('Field.validation', () => {
     form.registerField('bar', bar, { error: true })
 
     expect(foo).toHaveBeenCalled()
-    expect(foo).toHaveBeenCalledTimes(1)
-    expect(foo.mock.calls[0][0].error).toBe('Required')
+    expect(lastError(foo)).toBe('Required')
 
     form.change('foo', 'hi')
 
-    expect(foo).toHaveBeenCalledTimes(2)
-    expect(foo.mock.calls[1][0].error).toBe(undefined)
+    expect(lastError(foo)).toBeUndefined()
 
     expect(form.getState().invalid).toBe(false)
   })
@@ -1132,18 +1108,16 @@ describe('Field.validation', () => {
     form.registerField('baz', () => {}, {})
 
     expect(foo).toHaveBeenCalled()
-    expect(foo).toHaveBeenCalledTimes(1)
-    expect(foo.mock.calls[0][0].error).toBe('Required')
+    expect(lastError(foo)).toBe('Required')
+    const numFooCalls = foo.mock.calls.length
 
     expect(bar).toHaveBeenCalled()
-    expect(bar).toHaveBeenCalledTimes(1)
-    expect(bar.mock.calls[0][0].error).toBe('Required')
+    expect(lastError(bar)).toBe('Required')
 
     form.change('bar', 'hi')
 
-    expect(foo).toHaveBeenCalledTimes(1)
-    expect(bar).toHaveBeenCalledTimes(2)
-    expect(bar.mock.calls[1][0].error).toBeUndefined()
+    expect(foo).toHaveBeenCalledTimes(numFooCalls)
+    expect(lastError(bar)).toBeUndefined()
   })
 
   it('should show form as invalid if has field-level validation errors', () => {
@@ -1166,17 +1140,15 @@ describe('Field.validation', () => {
     expect(spy).toHaveBeenCalledTimes(2)
     expect(spy.mock.calls[1][0].invalid).toBe(true)
     expect(foo).toHaveBeenCalled()
-    expect(foo).toHaveBeenCalledTimes(1)
-    expect(foo.mock.calls[0][0].error).toBe('Required')
-    expect(foo.mock.calls[0][0].invalid).toBe(true)
+    expect(lastError(foo)).toBe('Required')
+    expect(lastCall(foo)[0].invalid).toBe(true)
 
     form.change('foo', 'hi')
 
     expect(spy).toHaveBeenCalledTimes(3)
     expect(spy.mock.calls[2][0].invalid).toBe(false)
-    expect(foo).toHaveBeenCalledTimes(2)
-    expect(foo.mock.calls[1][0].error).toBeUndefined()
-    expect(foo.mock.calls[1][0].invalid).toBe(false)
+    expect(lastError(foo)).toBeUndefined()
+    expect(lastCall(foo)[0].invalid).toBe(false)
   })
 
   it('should have validating true until the promise resolves', async () => {
@@ -1318,29 +1290,27 @@ describe('Field.validation', () => {
         getValidator: () => value => (value ? undefined : 'Required')
       }
     )
-    expect(foo3).toHaveBeenCalledTimes(1)
-    expect(foo3.mock.calls[0][0].error).toBe('Required')
+    expect(foo3).toHaveBeenCalled()
+    expect(lastError(foo3)).toBe('Required')
 
     // We also have to notify the other field listeners that we now have an error!
-    expect(foo1).toHaveBeenCalledTimes(2)
-    expect(foo1.mock.calls[1][0].error).toBe('Required')
-    expect(foo2).toHaveBeenCalledTimes(2)
-    expect(foo2.mock.calls[1][0].error).toBe('Required')
+    expect(lastError(foo1)).toBe('Required')
+    expect(lastError(foo2)).toBe('Required')
 
     // provide value and all get notified of error going away
     foo1.mock.calls[0][0].change('bar')
-    expect(foo1).toHaveBeenCalledTimes(3)
-    expect(foo1.mock.calls[2][0].error).toBeUndefined()
-    expect(foo2).toHaveBeenCalledTimes(3)
-    expect(foo2.mock.calls[2][0].error).toBeUndefined()
-    expect(foo3).toHaveBeenCalledTimes(2)
-    expect(foo3.mock.calls[1][0].error).toBeUndefined()
+    expect(lastError(foo1)).toBeUndefined()
+    expect(lastError(foo2)).toBeUndefined()
+    expect(lastError(foo3)).toBeUndefined()
+    const numFoo1Calls = foo1.mock.calls.length
+    const numFoo2Calls = foo2.mock.calls.length
+    const numFoo3Calls = foo3.mock.calls.length
 
     // change again and no notification
     foo1.mock.calls[0][0].change('bartender')
-    expect(foo1).toHaveBeenCalledTimes(3)
-    expect(foo2).toHaveBeenCalledTimes(3)
-    expect(foo3).toHaveBeenCalledTimes(2)
+    expect(foo1).toHaveBeenCalledTimes(numFoo1Calls)
+    expect(foo2).toHaveBeenCalledTimes(numFoo2Calls)
+    expect(foo3).toHaveBeenCalledTimes(numFoo3Calls)
   })
 
   it('should only call validate on field register if field-level validation provided', () => {
