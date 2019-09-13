@@ -1,5 +1,5 @@
 // @flow
-import toPath from './toPath'
+import { toPath } from 'lodash'
 import type { GetIn } from '../types'
 
 const getIn: GetIn = (state: Object, complexKey: string): any => {

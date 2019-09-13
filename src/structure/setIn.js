@@ -1,5 +1,5 @@
 // @flow
-import toPath from './toPath'
+import { toPath } from 'lodash'
 import type { SetIn } from '../types'
 
 type State = Object | Array<*> | void
