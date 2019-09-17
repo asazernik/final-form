@@ -201,7 +201,7 @@ function createForm<FormValues: FormValuesShape>(
     },
     lastFormState: undefined
   }
-  let inBatch = false
+  let inBatch = 0
   let validationPaused = false
   let validationBlocked = false
   let nextAsyncValidationKey = 0
@@ -663,9 +663,9 @@ function createForm<FormValues: FormValuesShape>(
 
   const api: FormApi<FormValues> = {
     batch: (fn: () => void) => {
-      inBatch = true
+      inBatch++
       fn()
-      inBatch = false
+      inBatch--
       notifyFieldListeners()
       notifyFormListeners()
     },
