@@ -203,7 +203,7 @@ function createForm<FormValues: FormValuesShape>(
   }
   let inBatch = 0
   let validationPaused = false
-  let validationBlocked = false
+  let fieldsChangedWhileValidationPaused: string[] = []
   let nextAsyncValidationKey = 0
   const asyncValidationPromises: { [number]: Promise<*> } = {}
   const clearAsyncValidationPromise = key => result => {
@@ -365,7 +365,13 @@ function createForm<FormValues: FormValuesShape>(
     const { fields, formState } = state
 
     if (validationPaused) {
-      validationBlocked = true
+      if (fieldsChanged) {
+        fieldsChangedWhileValidationPaused = chain(
+          fieldsChangedWhileValidationPaused
+        ).concat(fieldsChanged).uniq().value()
+      } else {
+        fieldsChangedWhileValidationPaused = Object.keys(fields)
+      }
       notifyChangedFields()
       formCallback()
       return
@@ -939,11 +945,15 @@ function createForm<FormValues: FormValuesShape>(
 
     resumeValidation: () => {
       validationPaused = false
-      if (validationBlocked) {
+      if (fieldsChangedWhileValidationPaused.length > 0) {
         // validation was attempted while it was paused, so run it now
-        runValidation(undefined, notifyFieldListeners, notifyFormListeners)
+        runValidation(
+          fieldsChangedWhileValidationPaused,
+          notifyFieldListeners,
+          notifyFormListeners
+        )
       }
-      validationBlocked = false
+      fieldsChangedWhileValidationPaused = []
     },
 
     setConfig: (name: string, value: any): void => {
