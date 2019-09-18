@@ -349,8 +349,11 @@ function createForm<FormValues: FormValuesShape>(
   const runValidation = (
     rawFieldsChanged: ?(string | string[]),
     fieldCallback?: string => void = () => undefined,
-    formCallback: () => void
+    formCallback: (useCachedFieldState: boolean) => void
   ) => {
+    // always called after fieldCallback
+    const boundFormCallback = () => formCallback(!!fieldCallback)
+
     const fieldsChanged =
       typeof rawFieldsChanged === 'string'
         ? [rawFieldsChanged]
@@ -372,12 +375,15 @@ function createForm<FormValues: FormValuesShape>(
       if (fieldsChanged) {
         fieldsChangedWhileValidationPaused = chain(
           fieldsChangedWhileValidationPaused
-        ).concat(fieldsChanged).uniq().value()
+        )
+          .concat(fieldsChanged)
+          .uniq()
+          .value()
       } else {
         fieldsChangedWhileValidationPaused = Object.keys(fields)
       }
       notifyChangedFields()
-      formCallback()
+      boundFormCallback()
       return
     }
 
@@ -388,7 +394,7 @@ function createForm<FormValues: FormValuesShape>(
       !fieldKeys.some(key => getValidators(safeFields[key]).length)
     ) {
       notifyChangedFields()
-      formCallback()
+      boundFormCallback()
       return // no validation rules
     }
 
@@ -500,7 +506,7 @@ function createForm<FormValues: FormValuesShape>(
       changedValidityFields.forEach(fieldCallback)
 
       formState.error = recordLevelErrors[FORM_ERROR]
-      formCallback()
+      boundFormCallback()
     }
 
     // process sync errors
@@ -509,11 +515,11 @@ function createForm<FormValues: FormValuesShape>(
 
     if (hasAsyncValidations) {
       state.formState.validating++
-      formCallback()
+      boundFormCallback()
 
       const afterPromise = () => {
         state.formState.validating--
-        formCallback()
+        boundFormCallback()
       }
 
       promise
@@ -572,17 +578,23 @@ function createForm<FormValues: FormValuesShape>(
   const hasSyncErrors = () =>
     !!(state.formState.error || hasAnyError(state.formState.errors))
 
-  const calculateNextFormState = (): FormState<FormValues> => {
+  const calculateNextFormState = (
+    useCachedFieldState: boolean = false
+  ): FormState<FormValues> => {
     const { fields, formState, lastFormState } = state
     const fieldKeys = Object.keys(fields)
 
     // calculate dirty/pristine
     let foundDirty = false
     const dirtyFields = fieldKeys.reduce((result, key) => {
-      const dirty = !fields[key].isEqual(
-        getIn(formState.values, key),
-        getIn(formState.initialValues || {}, key)
-      )
+      // THIS IS THE BAD ONE
+      const dirty =
+        useCachedFieldState && fields[key].lastFieldState
+          ? fields[key].lastFieldState.dirty
+          : !fields[key].isEqual(
+              getIn(formState.values, key),
+              getIn(formState.initialValues || {}, key)
+            )
       if (dirty) {
         foundDirty = true
         result[key] = true
@@ -595,10 +607,12 @@ function createForm<FormValues: FormValuesShape>(
       !fieldKeys.every(key => {
         // istanbul ignore next
         const nonNullLastSubmittedValues = formState.lastSubmittedValues || {} // || {} is for flow, but causes branch coverage complaint
-        return fields[key].isEqual(
-          getIn(formState.values, key),
-          getIn(nonNullLastSubmittedValues, key)
-        )
+        return useCachedFieldState && fields[key].lastFieldState
+          ? !fields[key].lastFieldState.dirtySinceLastSubmit
+          : fields[key].isEqual(
+              getIn(formState.values, key),
+              getIn(nonNullLastSubmittedValues, key)
+            )
       })
     )
 
@@ -651,7 +665,7 @@ function createForm<FormValues: FormValuesShape>(
 
   let notifying: boolean = false
   let scheduleNotification: boolean = false
-  const notifyFormListeners = () => {
+  const notifyFormListeners = (useCachedFieldState: boolean = false) => {
     if (notifying) {
       scheduleNotification = true
     } else {
@@ -659,7 +673,7 @@ function createForm<FormValues: FormValuesShape>(
       callDebug()
       if (!inBatch && !validationPaused) {
         const { lastFormState } = state
-        const nextFormState = calculateNextFormState()
+        const nextFormState = calculateNextFormState(useCachedFieldState)
         if (nextFormState !== lastFormState) {
           state.lastFormState = nextFormState
           notify(
@@ -678,7 +692,7 @@ function createForm<FormValues: FormValuesShape>(
       notifying = false
       if (scheduleNotification) {
         scheduleNotification = false
-        notifyFormListeners()
+        notifyFormListeners() // should possibly get useCachedFieldState, but I'm not sure about scheduleNotification logic
       }
     }
   }
@@ -706,20 +720,21 @@ function createForm<FormValues: FormValuesShape>(
 
       // we should only run batched ops and drop batching state if we've exited top-level batch
       if (!inBatch) {
-        if (!batchFieldsToNotify) { // as in calls to runValidation(), falsy indicates "all fields"
+        if (!batchFieldsToNotify) {
+          // as in calls to runValidation(), falsy indicates "all fields"
           notifyFieldListeners()
         } else {
           batchFieldsToNotify.forEach(notifyFieldListeners)
         }
         if (batchNotifyForm) {
-          notifyFormListeners()
+          notifyFormListeners(true) // all changed fields should have had notifyFieldListeners() called
         }
 
         // done with batched ops, reset state
         batchFieldsToNotify = []
         batchNotifyForm = false
       }
-  },
+    },
 
     blur: (name: string) => {
       const { fields, formState } = state
@@ -737,7 +752,7 @@ function createForm<FormValues: FormValuesShape>(
         if (validateOnBlur) {
           runValidation(name, notifyFieldListeners, notifyFormListeners)
         } else {
-          notifyFormListeners()
+          notifyFormListeners(true)
         }
       }
     },
@@ -757,7 +772,7 @@ function createForm<FormValues: FormValuesShape>(
         }
 
         if (validateOnBlur) {
-          notifyFormListeners()
+          notifyFormListeners(true)
         } else {
           runValidation(name, notifyFieldListeners, notifyFormListeners)
         }
@@ -779,7 +794,7 @@ function createForm<FormValues: FormValuesShape>(
         field.active = true
         field.visited = true
         notifyFieldListeners()
-        notifyFormListeners()
+        notifyFormListeners(true)
       }
     },
 
@@ -901,7 +916,7 @@ function createForm<FormValues: FormValuesShape>(
       if (haveValidator) {
         runValidation(undefined, notifyFieldListeners, notifyFormListeners)
       } else {
-        notifyFormListeners()
+        notifyFormListeners(true)
       }
 
       return () => {
@@ -933,7 +948,7 @@ function createForm<FormValues: FormValuesShape>(
           runValidation(undefined, notifyFieldListeners, notifyFormListeners)
         } else if (lastOne) {
           // values or errors may have changed
-          notifyFormListeners()
+          notifyFormListeners(true)
         }
       }
     },
@@ -1040,8 +1055,8 @@ function createForm<FormValues: FormValuesShape>(
       if (hasSyncErrors()) {
         markAllFieldsTouched()
         state.formState.submitFailed = true
-        notifyFormListeners()
         notifyFieldListeners()
+        notifyFormListeners(true)
         return // no submit for you!!
       }
       const asyncValidationPromisesKeys = Object.keys(asyncValidationPromises)
@@ -1074,8 +1089,8 @@ function createForm<FormValues: FormValuesShape>(
           formState.submitSucceeded = true
           afterSubmit()
         }
-        notifyFormListeners()
         notifyFieldListeners()
+        notifyFormListeners(true)
         completeCalled = true
         if (resolvePromise) {
           resolvePromise(errors)
@@ -1096,16 +1111,16 @@ function createForm<FormValues: FormValuesShape>(
       if (!completeCalled) {
         if (result && isPromise(result)) {
           // onSubmit is async with a Promise
-          notifyFormListeners() // let everyone know we are submitting
-          notifyFieldListeners() // notify fields also
+          notifyFieldListeners() // notify individual fields we are submitting
+          notifyFormListeners(true) // and everyone collectively
           return result.then(complete, error => {
             complete()
             throw error
           })
         } else if (onSubmit.length >= 3) {
           // must be async, so we should return a Promise
-          notifyFormListeners() // let everyone know we are submitting
-          notifyFieldListeners() // notify fields also
+          notifyFieldListeners() // notify individual fields we are submitting
+          notifyFormListeners(true) // and everyone collectively
           return new Promise(resolve => {
             resolvePromise = resolve
           })
