@@ -202,8 +202,12 @@ function createForm<FormValues: FormValuesShape>(
     lastFormState: undefined
   }
   let inBatch = 0
+  let batchFieldsToNotify: ?(string[]) = [] // as in calls to runValidation(), falsy indicates "all fields"
+  let batchNotifyForm = false
+
   let validationPaused = false
   let fieldsChangedWhileValidationPaused: string[] = []
+
   let nextAsyncValidationKey = 0
   const asyncValidationPromises: { [number]: Promise<*> } = {}
   const clearAsyncValidationPromise = key => result => {
@@ -527,6 +531,11 @@ function createForm<FormValues: FormValuesShape>(
 
   const notifyFieldListeners = (name: ?string) => {
     if (inBatch) {
+      if (!name) {
+        batchFieldsToNotify = undefined
+      } else if (batchFieldsToNotify && !batchFieldsToNotify.includes(name)) {
+        batchFieldsToNotify.push(name)
+      }
       return
     }
     const { fields, fieldSubscribers, formState } = state
@@ -661,6 +670,11 @@ function createForm<FormValues: FormValuesShape>(
           )
         }
       }
+
+      if (inBatch) {
+        batchNotifyForm = true
+      }
+
       notifying = false
       if (scheduleNotification) {
         scheduleNotification = false
@@ -689,9 +703,23 @@ function createForm<FormValues: FormValuesShape>(
       inBatch++
       fn()
       inBatch--
-      notifyFieldListeners()
-      notifyFormListeners()
-    },
+
+      // we should only run batched ops and drop batching state if we've exited top-level batch
+      if (!inBatch) {
+        if (!batchFieldsToNotify) { // as in calls to runValidation(), falsy indicates "all fields"
+          notifyFieldListeners()
+        } else {
+          batchFieldsToNotify.forEach(notifyFieldListeners)
+        }
+        if (batchNotifyForm) {
+          notifyFormListeners()
+        }
+
+        // done with batched ops, reset state
+        batchFieldsToNotify = []
+        batchNotifyForm = false
+      }
+  },
 
     blur: (name: string) => {
       const { fields, formState } = state
