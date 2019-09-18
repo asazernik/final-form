@@ -1,5 +1,5 @@
 // @flow
-import { clone } from 'lodash'
+import { clone, chain } from 'lodash'
 import getIn from './structure/getIn'
 import setIn from './structure/setIn'
 import publishFieldState from './publishFieldState'
@@ -343,43 +343,60 @@ function createForm<FormValues: FormValuesShape>(
   }
 
   const runValidation = (
-    fieldChanged: ?string,
+    rawFieldsChanged: ?(string | string[]),
     fieldCallback?: string => void = () => undefined,
     formCallback: () => void
   ) => {
+    const fieldsChanged =
+      typeof rawFieldsChanged === 'string'
+        ? [rawFieldsChanged]
+        : rawFieldsChanged
+
+    const notifyChangedFields = () => {
+      if (fieldsChanged) {
+        fieldsChanged.forEach(f => {
+          if (state.fields[f]) {
+            fieldCallback(f)
+          }
+        })
+      }
+    }
+
+    const { fields, formState } = state
+
     if (validationPaused) {
       validationBlocked = true
-      if (fieldChanged && state.fields[fieldChanged])
-        fieldCallback(fieldChanged)
+      notifyChangedFields()
       formCallback()
       return
     }
 
-    const { fields, formState } = state
     const safeFields = clone(fields)
     let fieldKeys = Object.keys(safeFields)
     if (
       !validate &&
       !fieldKeys.some(key => getValidators(safeFields[key]).length)
     ) {
-      if (fieldChanged && safeFields[fieldChanged]) fieldCallback(fieldChanged)
+      notifyChangedFields()
       formCallback()
       return // no validation rules
     }
 
     // pare down field keys to actually validate
     let limitedFieldLevelValidation = false
-    if (fieldChanged) {
-      const changedField = safeFields[fieldChanged]
-      if (changedField) {
-        const { validateFields } = changedField
-        if (validateFields) {
-          limitedFieldLevelValidation = true
-          fieldKeys = validateFields.length
-            ? validateFields.concat(fieldChanged)
-            : [fieldChanged]
-        }
-      }
+    if (
+      fieldsChanged &&
+      fieldsChanged.every(f => safeFields[f] && safeFields[f].validateFields)
+    ) {
+      limitedFieldLevelValidation = true
+      const processedValidateFields = fieldsChanged.map(f => {
+        const validateFields = safeFields[f].validateFields
+        return validateFields.length ? validateFields.concat(f) : [f]
+      })
+      fieldKeys = chain(processedValidateFields)
+        .flatten()
+        .uniq()
+        .value()
     }
 
     let recordLevelErrors: Object = {}
