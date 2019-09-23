@@ -587,7 +587,6 @@ function createForm<FormValues: FormValuesShape>(
     // calculate dirty/pristine
     let foundDirty = false
     const dirtyFields = fieldKeys.reduce((result, key) => {
-      // THIS IS THE BAD ONE
       const dirty =
         useCachedFieldState && fields[key].lastFieldState
           ? fields[key].lastFieldState.dirty
