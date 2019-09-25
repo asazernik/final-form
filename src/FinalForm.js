@@ -424,15 +424,17 @@ function createForm<FormValues: FormValuesShape>(
       }),
       ...fieldKeys.reduce(
         (result, name) =>
-          result.concat(
-            runFieldLevelValidation(
-              fields[name],
-              (error: ?any) => {
-                fieldLevelErrors[name] = error
-              },
-              fieldCallback
-            )
-          ),
+          safeFields[name]
+            ? result.concat(
+                runFieldLevelValidation(
+                  safeFields[name],
+                  (error: ?any) => {
+                    fieldLevelErrors[name] = error
+                  },
+                  fieldCallback
+                )
+              )
+            : result,
         []
       )
     ]
@@ -455,7 +457,7 @@ function createForm<FormValues: FormValuesShape>(
       }
       const forEachError = (fn: (name: string, error: any) => void) => {
         fieldKeys.forEach(name => {
-          if (fields[name]) {
+          if (safeFields[name]) {
             // make sure field is still registered
             // field-level errors take precedent over record-level errors
             const recordLevelError = getIn(recordLevelErrors, name)
