@@ -715,8 +715,12 @@ function createForm<FormValues: FormValuesShape>(
 
   const api: FormApi<FormValues> = {
     batch: (fn: () => void) => {
-      inBatch++
+      api.batchStart()
       fn()
+      api.batchEnd()
+    },
+
+    batchEnd: () => {
       inBatch--
 
       // we should only run batched ops and drop batching state if we've exited top-level batch
@@ -735,6 +739,10 @@ function createForm<FormValues: FormValuesShape>(
         batchFieldsToNotify = []
         batchNotifyForm = false
       }
+    },
+
+    batchStart: () => {
+      inBatch++
     },
 
     blur: (name: string) => {
