@@ -672,7 +672,7 @@ function createForm<FormValues: FormValuesShape>(
     } else {
       notifying = true
       callDebug()
-      if (!inBatch && !validationPaused) {
+      if (!inBatch) {
         const { lastFormState } = state
         const nextFormState = calculateNextFormState(useCachedFieldState)
         if (nextFormState !== lastFormState) {
